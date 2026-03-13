@@ -129,8 +129,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("🔄 Новая презентация", callback_data="new"),
         ]])
-        await msg.reply_text("Что дальше?", reply_markup=kb)
-        store.reset(uid)
+        await msg.reply_text(
+            "Можете попросить изменения или нажмите кнопку для новой презентации.",
+            reply_markup=kb,
+        )
 
 
 async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
