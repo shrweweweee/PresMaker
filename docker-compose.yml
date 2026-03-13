@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+
+  # ── Acme Corp ─────────────────────────────────────────────────────────────
+  bot-acme:
+    build: .
+    restart: unless-stopped
+    env_file: .env.acme          # создать из .env.example
+    environment:
+      BRAND_CONFIG: brand/config.yaml
+    volumes:
+      - ./brand:/app/brand:ro    # конфиги только для чтения
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── TechStartup ───────────────────────────────────────────────────────────
+  # Раскомментируйте для второго клиента:
+  #
+  # bot-techstartup:
+  #   build: .
+  #   restart: unless-stopped
+  #   env_file: .env.techstartup   # свой TELEGRAM_TOKEN для этого бота
+  #   environment:
+  #     BRAND_CONFIG: brand/techstartup.yaml
+  #   volumes:
+  #     - ./brand:/app/brand:ro

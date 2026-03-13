@@ -1,0 +1,63 @@
+# =============================================================================
+#  ПРИМЕР ФОРКА — TechStartup Inc
+#  Запуск: BRAND_CONFIG=brand/techstartup.yaml python bot.py
+# =============================================================================
+
+company:
+  name: "TechStartup Inc"
+  tagline: "Move fast, build smart"
+  language: "ru"
+  tone: "friendly"
+
+colors:
+  primary:    "0F172A"     # Тёмно-синий (slate-900)
+  accent:     "6366F1"     # Индиго
+  bg_light:   "F8FAFC"
+  bg_dark:    "0F172A"
+  text_dark:  "0F172A"
+  text_muted: "94A3B8"
+  success:    "10B981"
+  danger:     "F43F5E"
+
+  chart_palette:
+    - "6366F1"
+    - "10B981"
+    - "F59E0B"
+    - "EC4899"
+    - "0EA5E9"
+
+typography:
+  font_heading: "Arial"
+  font_body:    "Arial"
+  size_title:   40
+  size_heading: 26
+  size_section: 20
+  size_body:    18
+  size_caption: 12
+
+logo:
+  url: ""
+  position: "bottom-right"
+  width_inches: 1.2
+
+slide_defaults:
+  count: 8
+  always_include:
+    - "title"
+    - "closing"
+  footer_text: ""
+  slide_numbers: true
+
+agent:
+  welcome_message: |
+    👋 Привет! Я ассистент TechStartup Inc.
+    Создаю слайды для питчей, ретро и демо.
+
+    Напишите что нужно — разберёмся вместе!
+
+  company_context: |
+    TechStartup Inc — продуктовая IT-компания, B2C мобильные приложения.
+    Аудитории: инвесторы, команда разработки, пользователи.
+    Ключевые метрики: DAU, Retention D7/D30, LTV, Conversion Rate.
+
+  forbidden_topics: []
