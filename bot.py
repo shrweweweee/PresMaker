@@ -32,7 +32,14 @@ pipeline = Pipeline()
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     store.reset(update.effective_user.id)
-    await update.message.reply_text(brand.agent.welcome_message, parse_mode="Markdown")
+    from brand.loader import list_brands
+    names = ", ".join(f"*{name}*" for name, _ in list_brands())
+    await update.message.reply_text(
+        f"👋 Привет! Я ассистент по созданию презентаций.\n\n"
+        f"Для какой компании готовим презентацию?\n\n"
+        f"Доступные компании: {names}",
+        parse_mode="Markdown",
+    )
 
 
 async def cmd_brand_info(update: Update, ctx: ContextTypes.DEFAULT_TYPE):

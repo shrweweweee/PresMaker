@@ -1,7 +1,6 @@
 """Этап 4: QA — визуальная проверка через Claude Vision."""
 import os, subprocess, tempfile, glob, re, base64
 import anthropic
-from brand.loader import brand
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -47,8 +46,7 @@ def _render_to_png(pptx_path: str) -> list[str]:
     try:
         tmp = tempfile.mkdtemp()
         subprocess.run(
-            ["python3", "/mnt/skills/public/pptx/scripts/office/soffice.py",
-             "--headless","--convert-to","pdf", pptx_path,"--outdir",tmp],
+            ["libreoffice","--headless","--convert-to","pdf", pptx_path,"--outdir",tmp],
             capture_output=True, timeout=60
         )
         pdfs = glob.glob(os.path.join(tmp,"*.pdf"))
@@ -84,6 +82,7 @@ async def _vision_check(pngs: list[str]) -> str:
 
 
 def _file_result(session) -> dict:
+    brand = session["brand"]
     meta  = session.get("pptx_meta", {})
     title = meta.get("title", brand.company_name)
     n     = meta.get("slides","?")

@@ -1,12 +1,11 @@
 """Этап 1: Research — сбор и структурирование данных."""
 import os, json, re, io
 import anthropic
-from brand.loader import brand
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 
-def _make_system() -> str:
+def _make_system(brand) -> str:
     return f"""
 Ты — исследователь-аналитик для компании {brand.company_name}.
 {brand.agent.company_context}
@@ -45,6 +44,7 @@ kind: bar | line | pie | doughnut
 
 class ResearchStage:
     async def run(self, session, user_text, file_bytes, file_name) -> dict:
+        brand = session["brand"]
         messages = list(session["history"])
         if file_bytes and file_name:
             parsed = _parse_file(file_bytes, file_name)
@@ -52,7 +52,7 @@ class ResearchStage:
 
         resp = client.messages.create(
             model="claude-sonnet-4-20250514", max_tokens=2000,
-            system=_make_system(), messages=messages,
+            system=_make_system(brand), messages=messages,
         )
         text = resp.content[0].text.strip()
         data = _extract_json(text)

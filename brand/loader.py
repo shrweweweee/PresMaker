@@ -1,17 +1,16 @@
 """
 Загрузчик брендбука.
-Читает brand/config.yaml один раз при старте, отдаёт типизированный объект.
-Все модули импортируют `brand` отсюда — не хранят стиль локально.
+Поддерживает несколько компаний — каждый YAML в brand/ = отдельный бренд.
 """
 from __future__ import annotations
 import os
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import yaml
 from pptx.dml.color import RGBColor
 
-# Путь к конфигу — можно переопределить через переменную окружения
-_CONFIG_PATH = Path(os.environ.get("BRAND_CONFIG", Path(__file__).parent / "config.yaml"))
+_BRAND_DIR = Path(__file__).parent
+_CONFIG_PATH = Path(os.environ.get("BRAND_CONFIG", _BRAND_DIR / "config.yaml"))
 
 
 @dataclass
@@ -24,8 +23,7 @@ class Colors:
     text_muted:    RGBColor
     success:       RGBColor
     danger:        RGBColor
-    chart_palette: list[str]   # hex strings для matplotlib
-    # Исходные hex-строки (нужны для matplotlib)
+    chart_palette: list[str]
     primary_hex:   str = "#1A3C6E"
     accent_hex:    str = "#E8612A"
 
@@ -76,7 +74,6 @@ class BrandConfig:
     agent:           AgentConfig
 
     def chart_colors(self, n: int) -> list[str]:
-        """Возвращает n цветов из палитры (циклически)."""
         palette = self.colors.chart_palette
         return [(("#" + c.lstrip("#")) if not c.startswith("#") else c)
                 for c in (palette * 3)[:n]]
@@ -87,13 +84,14 @@ def _hex(h: str) -> RGBColor:
     return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
-def load() -> BrandConfig:
-    with open(_CONFIG_PATH, encoding="utf-8") as f:
+def load(path: Path | None = None) -> BrandConfig:
+    path = path or _CONFIG_PATH
+    with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
 
-    c = raw["colors"]
-    t = raw["typography"]
-    l = raw.get("logo", {})
+    c  = raw["colors"]
+    t  = raw["typography"]
+    l  = raw.get("logo", {})
     sd = raw.get("slide_defaults", {})
     ag = raw.get("agent", {})
     co = raw.get("company", {})
@@ -138,12 +136,34 @@ def load() -> BrandConfig:
     )
 
 
-# ── Синглтон — загружается один раз при импорте ────────────────────────────
+def list_brands() -> list[tuple[str, Path]]:
+    """Возвращает список (название компании, путь к yaml) для всех брендов."""
+    result = []
+    for yaml_file in sorted(_BRAND_DIR.glob("*.yaml")):
+        try:
+            with open(yaml_file, encoding="utf-8") as f:
+                raw = yaml.safe_load(f)
+            name = raw.get("company", {}).get("name", yaml_file.stem)
+            result.append((name, yaml_file))
+        except Exception:
+            pass
+    return result
+
+
+def find_brand(query: str) -> BrandConfig | None:
+    """Находит бренд по названию компании (регистронезависимо, частичное совпадение)."""
+    q = query.lower().strip()
+    for name, path in list_brands():
+        if q in name.lower() or name.lower() in q:
+            return load(path)
+    return None
+
+
+# Синглтон — дефолтный бренд (используется как fallback)
 brand: BrandConfig = load()
 
 
 def reload() -> BrandConfig:
-    """Перезагружает конфиг без перезапуска бота (удобно при правках)."""
     global brand
     brand = load()
     return brand

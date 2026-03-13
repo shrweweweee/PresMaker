@@ -1,7 +1,8 @@
 """
 Оркестратор: маршрутизирует между этапами.
-Брендбук читается из brand.loader, не передаётся через аргументы.
+Бренд хранится в session["brand"] и выбирается на этапе company_select.
 """
+from brand.loader import find_brand, list_brands
 from stages.research import ResearchStage
 from stages.preparation import PreparationStage
 from stages.delivery import DeliveryStage
@@ -22,8 +23,12 @@ class Pipeline:
         file_bytes: bytes | None = None,
         file_name: str | None = None,
     ) -> dict:
+        stage = session.get("stage", "company_select")
+
+        if stage == "company_select":
+            return await self._select_company(session, user_text)
+
         session["history"].append({"role": "user", "content": user_text})
-        stage = session.get("stage", "research")
 
         if stage == "research":
             result = await self.research.run(session, user_text, file_bytes, file_name)
@@ -39,8 +44,7 @@ class Pipeline:
                 session["brief"]      = result["brief"]["brief"]
                 session["slide_plan"] = result["brief"]["slide_plan"]
                 session["stage"]      = "delivery"
-                delivery_msg = await self._do_delivery(session)
-                return delivery_msg
+                return await self._do_delivery(session)
             return {"type": "message", "text": result["message"]}
 
         elif stage == "delivery":
@@ -52,7 +56,30 @@ class Pipeline:
                 return {"type": "file", **result["file"]}
             return {"type": "message", "text": result["message"]}
 
-        return {"type": "message", "text": "Напишите тему презентации."}
+        return {"type": "message", "text": "Напишите название компании."}
+
+    async def _select_company(self, session: dict, user_text: str) -> dict:
+        brand = find_brand(user_text.strip())
+        if brand:
+            session["brand"] = brand
+            session["stage"] = "research"
+            return {
+                "type": "message",
+                "text": (
+                    f"✅ Компания *{brand.company_name}* — бренд загружен.\n\n"
+                    "Напишите тему презентации или прикрепите файл с данными."
+                ),
+            }
+
+        available = ", ".join(name for name, _ in list_brands())
+        return {
+            "type": "message",
+            "text": (
+                f"❌ Компания «{user_text}» не найдена.\n\n"
+                f"Доступные компании: *{available}*\n\n"
+                "Напишите название ещё раз."
+            ),
+        }
 
     async def _do_delivery(self, session: dict) -> dict:
         path, meta = await self.delivery.run(session)

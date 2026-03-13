@@ -1,12 +1,14 @@
 """Этап 2: Preparation — уточняет аудиторию, тон, план слайдов."""
 import os, json, re
 import anthropic
-from brand.loader import brand
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
+_ICONS = {"title":"🏷","content":"📄","chart":"📊",
+          "two_column":"📰","quote":"💬","stats":"📈","closing":"🏁"}
 
-def _make_system() -> str:
+
+def _make_system(brand) -> str:
     defaults = brand.slide_defaults
     return f"""
 Ты — продюсер презентаций компании {brand.company_name}.
@@ -45,17 +47,15 @@ def _make_system() -> str:
 Не задавай больше одного вопроса. JSON — без лишних слов.
 """
 
-_ICONS = {"title":"🏷","content":"📄","chart":"📊",
-          "two_column":"📰","quote":"💬","stats":"📈","closing":"🏁"}
-
 
 class PreparationStage:
 
     async def start(self, session) -> dict:
+        brand = session["brand"]
         research = session["research_data"]
         resp = client.messages.create(
             model="claude-sonnet-4-20250514", max_tokens=800,
-            system=_make_system(),
+            system=_make_system(brand),
             messages=[{"role":"user","content":(
                 f"Research готов. Тема: {research.get('topic','')}\n"
                 f"Данные: {json.dumps(research, ensure_ascii=False)[:800]}\n\nНачни уточнение."
@@ -68,6 +68,7 @@ class PreparationStage:
         return {"type": "message", "text": text}
 
     async def run(self, session, user_text) -> dict:
+        brand = session["brand"]
         confirm = {"да","ок","окей","верно","давай","поехали","go","yes","ok","угу","ага"}
         if any(w in user_text.lower() for w in confirm) and session.get("slide_plan"):
             session["stage"] = "delivery"
@@ -79,7 +80,7 @@ class PreparationStage:
         research = session["research_data"]
         resp = client.messages.create(
             model="claude-sonnet-4-20250514", max_tokens=1200,
-            system=_make_system(),
+            system=_make_system(brand),
             messages=[
                 {"role":"user","content": f"Research: {json.dumps(research, ensure_ascii=False)[:600]}"},
                 *session["history"][-6:],
@@ -92,6 +93,7 @@ class PreparationStage:
         return {"done": False, "message": text}
 
     async def _show_plan(self, session, data) -> dict:
+        brand = session["brand"]
         session["brief"]      = data["brief"]
         session["slide_plan"] = data["slide_plan"]
 

@@ -5,7 +5,8 @@ class SessionStore:
     def get_or_create(self, uid: int) -> dict:
         if uid not in self._s:
             self._s[uid] = {
-                "stage": "research",
+                "stage": "company_select",
+                "brand": None,
                 "history": [],
                 "research_data": {},
                 "brief": {},
