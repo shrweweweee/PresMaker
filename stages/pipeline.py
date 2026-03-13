@@ -56,7 +56,7 @@ class Pipeline:
             return {"type": "message", "text": result["message"]}
 
         elif stage == "preparation":
-            result = await self.preparation.run(session, user_text)
+            result = await self.preparation.run(session, user_text, file_bytes, file_name)
             if result.get("done"):
                 session["brief"]      = result["brief"]["brief"]
                 session["slide_plan"] = result["brief"]["slide_plan"]

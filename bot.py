@@ -115,7 +115,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "delivery_build": "⚙️", "qa": "🔎",
         }
         icon = stage_icons.get(session.get("stage", ""), "")
-        await msg.reply_text(f"{icon} {result['text']}", parse_mode="Markdown")
+        body = f"{icon} {result['text']}"
+        try:
+            await msg.reply_text(body, parse_mode="Markdown")
+        except Exception:
+            log.warning("Markdown parse failed, sending plain text")
+            await msg.reply_text(body)
 
     elif result["type"] == "file":
         await ctx.bot.send_chat_action(msg.chat_id, "upload_document")

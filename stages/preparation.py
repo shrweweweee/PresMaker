@@ -1,6 +1,7 @@
 """Этап 2: Preparation — уточняет аудиторию, тон, план слайдов."""
 import os, json, re
 import anthropic
+from stages.onboarding import _parse_file
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -67,7 +68,7 @@ class PreparationStage:
             return await self._show_plan(session, data)
         return {"type": "message", "text": text}
 
-    async def run(self, session, user_text) -> dict:
+    async def run(self, session, user_text, file_bytes=None, file_name=None) -> dict:
         brand = session["brand"]
         confirm = {"да","ок","окей","верно","давай","поехали","go","yes","ok","угу","ага"}
         if any(w in user_text.lower() for w in confirm) and session.get("slide_plan"):
@@ -76,14 +77,29 @@ class PreparationStage:
                 "slide_plan": session["slide_plan"],
             }}
 
+        if file_bytes and file_name:
+            parsed = _parse_file(file_bytes, file_name)
+            file_context = f"\n\n[Файл: {file_name}]\n{parsed}"
+            # Update last history entry to include file content
+            if session["history"] and session["history"][-1]["role"] == "user":
+                session["history"][-1]["content"] += file_context
+
         research = session["research_data"]
+        research_ctx = f"Research: {json.dumps(research, ensure_ascii=False)[:600]}"
+        # Build messages ensuring alternating user/assistant roles
+        messages = [{"role": "user", "content": research_ctx}]
+        for entry in session["history"][-6:]:
+            if messages[-1]["role"] == entry["role"]:
+                messages[-1]["content"] += "\n\n" + entry["content"]
+            else:
+                messages.append(dict(entry))
+        # Ensure last message is user role
+        if messages[-1]["role"] != "user":
+            messages.append({"role": "user", "content": "Продолжай."})
         resp = client.messages.create(
             model="claude-sonnet-4-20250514", max_tokens=1200,
             system=_make_system(brand),
-            messages=[
-                {"role":"user","content": f"Research: {json.dumps(research, ensure_ascii=False)[:600]}"},
-                *session["history"][-6:],
-            ],
+            messages=messages,
         )
         text = resp.content[0].text.strip()
         data = _extract_json(text)
