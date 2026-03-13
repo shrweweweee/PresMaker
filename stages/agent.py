@@ -204,13 +204,40 @@ def _format_slides_preview(slides: list) -> str:
 # ── Message trimmer ─────────────────────────────────────────────────────────
 
 def _trim_messages(messages: list, max_pairs: int = 12):
-    """Keep first user message + last N pairs. Truncate large tool results."""
+    """Keep first user message + last N message pairs.
+
+    Never cut between an assistant tool_use and its following user tool_result —
+    the API requires every tool_result to have a matching tool_use in the
+    immediately preceding assistant message.
+    """
     if len(messages) <= max_pairs * 2 + 1:
         return
 
-    # Keep first message + last max_pairs*2 messages
+    # Find safe cut points — indices where we can split without breaking
+    # a tool_use / tool_result pair.  A cut is unsafe right after an
+    # assistant message whose content contains tool_use blocks (because
+    # the next message will hold tool_results that reference them).
+    target_start = len(messages) - max_pairs * 2
+    cut = target_start
+    # Walk forward from target_start to find the nearest safe point
+    while cut < len(messages) - 1:
+        prev = messages[cut - 1] if cut > 0 else None
+        if prev and prev.get("role") == "assistant" and _has_tool_use(prev):
+            cut += 1  # skip — can't cut here, would orphan tool_results
+            continue
+        # Also unsafe if cut itself is a tool_result message
+        cur = messages[cut]
+        if cur.get("role") == "user" and _has_tool_result(cur):
+            cut += 1
+            continue
+        break
+
+    if cut >= len(messages) - 1:
+        # Can't trim safely — just truncate large payloads
+        cut = 1  # keep only the very first message
+
     keep_first = messages[:1]
-    keep_last = messages[-(max_pairs * 2):]
+    keep_last = messages[cut:]
     messages.clear()
     messages.extend(keep_first + keep_last)
 
@@ -222,6 +249,26 @@ def _trim_messages(messages: list, max_pairs: int = 12):
                     content = block.get("content", "")
                     if isinstance(content, str) and len(content) > 500:
                         block["content"] = content[:500] + "… [обрезано]"
+
+
+def _has_tool_use(msg: dict) -> bool:
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(b, dict) and b.get("type") == "tool_use"
+        for b in content
+    )
+
+
+def _has_tool_result(msg: dict) -> bool:
+    content = msg.get("content")
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(b, dict) and b.get("type") == "tool_result"
+        for b in content
+    )
 
 
 # ── Extract text from response ──────────────────────────────────────────────
