@@ -107,15 +107,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if result["type"] == "message":
-        session["history"].append({"role": "assistant", "content": result["text"]})
         stage_icons = {
-            "research": "🔍", "preparation": "📋",
-            "onboarding": "🏢", "theme_select": "🎨",
-            "content_fill": "✍️", "content_review": "👁",
-            "delivery_build": "⚙️", "qa": "🔎",
+            "active": "🤖", "theme_select": "🎨",
+            "company_select": "🏢",
         }
         icon = stage_icons.get(session.get("stage", ""), "")
-        body = f"{icon} {result['text']}"
+        body = f"{icon} {result['text']}" if icon else result["text"]
         try:
             await msg.reply_text(body, parse_mode="Markdown")
         except Exception:

@@ -7,18 +7,19 @@ class SessionStore:
             self._s[uid] = {
                 "stage": "company_select",
                 "brand": None,
-                "history": [],
+                "messages": [],              # full Claude API messages
+                "system_prompt": "",         # built when brand selected
                 "research_data": {},
                 "brief": {},
                 "slide_plan": [],
-                "qa_attempts": 0,
                 "filled_slides": [],
                 "pptx_path": None,
                 "pptx_meta": {},
+                "qa_attempts": 0,
+                # brand selection
                 "theme_candidates": [],
                 "theme_pending": None,
                 "new_theme_base_brand": None,
-                "onboarding_extracted": {},
             }
         return self._s[uid]
 
