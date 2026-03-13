@@ -12,6 +12,13 @@ class SessionStore:
                 "brief": {},
                 "slide_plan": [],
                 "qa_attempts": 0,
+                "filled_slides": [],
+                "pptx_path": None,
+                "pptx_meta": {},
+                "theme_candidates": [],
+                "theme_pending": None,
+                "new_theme_base_brand": None,
+                "onboarding_extracted": {},
             }
         return self._s[uid]
 

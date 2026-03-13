@@ -71,7 +71,6 @@ class PreparationStage:
         brand = session["brand"]
         confirm = {"да","ок","окей","верно","давай","поехали","go","yes","ok","угу","ага"}
         if any(w in user_text.lower() for w in confirm) and session.get("slide_plan"):
-            session["stage"] = "delivery"
             return {"done": True, "brief": {
                 "brief": session["brief"],
                 "slide_plan": session["slide_plan"],

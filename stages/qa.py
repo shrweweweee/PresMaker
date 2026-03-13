@@ -37,8 +37,7 @@ class QAStage:
 
     async def run(self, session, user_text) -> dict:
         if any(w in user_text.lower() for w in ["переделай","исправь","redo","fix"]):
-            session["stage"] = "delivery"
-            return {"message": "🔄 Пересоздаю презентацию…"}
+            return {"redo": True, "message": "🔄 Пересоздаю презентацию…"}
         return {"approved": True, "file": _file_result(session)}
 
 

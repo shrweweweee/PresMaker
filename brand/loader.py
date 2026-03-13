@@ -72,6 +72,9 @@ class BrandConfig:
     logo:            Logo
     slide_defaults:  SlideDefaults
     agent:           AgentConfig
+    slug:            str = ""
+    theme_name:      str = "default"
+    description:     str = ""
 
     def chart_colors(self, n: int) -> list[str]:
         palette = self.colors.chart_palette
@@ -110,6 +113,7 @@ def load(path: Path | None = None) -> BrandConfig:
         accent_hex="#" + c["accent"].lstrip("#"),
     )
 
+    stem = Path(path).stem if path else ""
     return BrandConfig(
         company_name=co.get("name", ""),
         tagline=co.get("tagline", ""),
@@ -133,6 +137,9 @@ def load(path: Path | None = None) -> BrandConfig:
             company_context=ag.get("company_context", ""),
             forbidden_topics=ag.get("forbidden_topics", []),
         ),
+        slug=co.get("slug", stem),
+        theme_name=co.get("theme_name", "default"),
+        description=co.get("description", ""),
     )
 
 
@@ -150,13 +157,35 @@ def list_brands() -> list[tuple[str, Path]]:
     return result
 
 
-def find_brand(query: str) -> BrandConfig | None:
-    """Находит бренд по названию компании (регистронезависимо, частичное совпадение)."""
+def list_brands_grouped() -> dict[str, list[dict]]:
+    """Возвращает {slug: [{"name": ..., "theme": ..., "path": Path}, ...]}."""
+    groups: dict[str, list[dict]] = {}
+    for yaml_file in sorted(_BRAND_DIR.glob("*.yaml")):
+        try:
+            with open(yaml_file, encoding="utf-8") as f:
+                raw = yaml.safe_load(f)
+            co = raw.get("company", {})
+            name = co.get("name", yaml_file.stem)
+            slug = co.get("slug", yaml_file.stem)
+            theme = co.get("theme_name", "default")
+            entry = {"name": name, "theme": theme, "path": yaml_file}
+            groups.setdefault(slug, []).append(entry)
+        except Exception:
+            pass
+    # default theme first in each group
+    for slug in groups:
+        groups[slug].sort(key=lambda e: (0 if e["theme"] == "default" else 1, e["theme"]))
+    return groups
+
+
+def find_brand(query: str) -> list[BrandConfig]:
+    """Находит все темы компании по названию (регистронезависимо, частичное совпадение)."""
     q = query.lower().strip()
+    results = []
     for name, path in list_brands():
         if q in name.lower() or name.lower() in q:
-            return load(path)
-    return None
+            results.append(load(path))
+    return results
 
 
 # Синглтон — дефолтный бренд (используется как fallback)

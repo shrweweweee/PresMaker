@@ -2,8 +2,7 @@
 Этап 3: Delivery — генерирует PPTX.
 Все цвета, шрифты, размеры берутся из session["brand"].
 """
-import os, json, re, io, tempfile
-import anthropic
+import io, tempfile
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,37 +11,15 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 
-client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
 _W = Inches(13.33)
 _H = Inches(7.5)
 
 
-def _make_content_system(brand) -> str:
-    return f"""
-Ты заполняешь слайды контентом для компании {brand.company_name}.
-Язык: {brand.language}. Тон: {brand.tone}.
-{brand.agent.company_context}
-
-Верни ТОЛЬКО JSON-массив слайдов с заполненным контентом.
-
-Форматы:
-- content: {{"id":N,"type":"content","title":"...","content":[{{"type":"bullet","text":"..."}},{{"type":"highlight","text":"ключевой тезис"}}],"speaker_notes":"..."}}
-- chart:   {{"id":N,"type":"chart","title":"...","chart_ref":0}}
-- two_column: {{"id":N,"type":"two_column","title":"...","left":{{"heading":"До","items":["..."]}}, "right":{{"heading":"После","items":["..."]}}}}
-- stats:   {{"id":N,"type":"stats","title":"...","stats":[{{"label":"Выручка","value":"₽2.4 млрд","trend":"+18%"}}]}}
-- title:   {{"id":1,"type":"title","title":"...","subtitle":"..."}}
-- closing: {{"id":N,"type":"closing","title":"Спасибо!","content":[{{"type":"bullet","text":"контакт"}}]}}
-
-4-6 буллетов на content-слайд. Только JSON, без обёрток.
-"""
-
-
-class DeliveryStage:
+class DeliveryBuildStage:
 
     async def run(self, session) -> tuple[str, dict]:
         brand = session["brand"]
-        slides = await self._fill_content(session)
+        slides = session["filled_slides"]
         tmp = tempfile.NamedTemporaryFile(suffix=".pptx", delete=False)
         tmp.close()
         _build_pptx(slides, session["research_data"].get("data_for_charts", []), tmp.name, brand)
@@ -50,28 +27,6 @@ class DeliveryStage:
             "title":  session["research_data"].get("topic", "Презентация"),
             "slides": len(slides),
         }
-
-    async def _fill_content(self, session) -> list:
-        brand      = session["brand"]
-        research   = session["research_data"]
-        brief      = session.get("brief", {})
-        slide_plan = session.get("slide_plan", [])
-        resp = client.messages.create(
-            model="claude-sonnet-4-20250514", max_tokens=5000,
-            system=_make_content_system(brand),
-            messages=[{"role":"user","content":(
-                f"Research:\n{json.dumps(research, ensure_ascii=False)}\n\n"
-                f"Бриф: {json.dumps(brief, ensure_ascii=False)}\n\n"
-                f"План: {json.dumps(slide_plan, ensure_ascii=False)}"
-            )}],
-        )
-        text = resp.content[0].text.strip()
-        text = re.sub(r"^```(?:json)?\s*","",text); text = re.sub(r"\s*```$","",text)
-        try:
-            result = json.loads(text)
-            if isinstance(result, list): return result
-        except Exception: pass
-        return slide_plan
 
 
 # ── PPTX builder ─────────────────────────────────────────────────────────────

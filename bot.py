@@ -19,7 +19,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters,
 )
-from brand.loader import brand, reload as reload_brand
+from brand.loader import brand, reload as reload_brand, list_brands_grouped
 from stages.session import SessionStore
 from stages.pipeline import Pipeline
 
@@ -32,12 +32,21 @@ pipeline = Pipeline()
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     store.reset(update.effective_user.id)
-    from brand.loader import list_brands
-    names = ", ".join(f"*{name}*" for name, _ in list_brands())
+    grouped = list_brands_grouped()
+    lines = []
+    for slug, themes in grouped.items():
+        company_name = themes[0]["name"]
+        if len(themes) == 1:
+            lines.append(f"• *{company_name}*")
+        else:
+            theme_list = ", ".join(t["theme"] for t in themes)
+            lines.append(f"• *{company_name}* ({theme_list})")
+    companies_text = "\n".join(lines) if lines else "_нет доступных компаний_"
     await update.message.reply_text(
-        f"👋 Привет! Я ассистент по созданию презентаций.\n\n"
-        f"Для какой компании готовим презентацию?\n\n"
-        f"Доступные компании: {names}",
+        "👋 Привет! Я ассистент по созданию презентаций.\n\n"
+        "Для какой компании готовим презентацию?\n\n"
+        f"*Доступные компании:*\n{companies_text}\n\n"
+        "Если компании нет в списке — просто напишите её название, я помогу создать брендбук.",
         parse_mode="Markdown",
     )
 
@@ -99,7 +108,12 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if result["type"] == "message":
         session["history"].append({"role": "assistant", "content": result["text"]})
-        stage_icons = {"research": "🔍", "preparation": "📋", "delivery": "⚙️", "qa": "🔎"}
+        stage_icons = {
+            "research": "🔍", "preparation": "📋",
+            "onboarding": "🏢", "theme_select": "🎨",
+            "content_fill": "✍️", "content_review": "👁",
+            "delivery_build": "⚙️", "qa": "🔎",
+        }
         icon = stage_icons.get(session.get("stage", ""), "")
         await msg.reply_text(f"{icon} {result['text']}", parse_mode="Markdown")
 
