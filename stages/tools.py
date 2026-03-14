@@ -59,6 +59,11 @@ TOOL_DEFINITIONS = [
                     "pattern": "^#[0-9A-Fa-f]{6}$",
                     "description": "Акцентный цвет в hex (#RRGGBB)",
                 },
+                "logo_url": {
+                    "type": "string",
+                    "description": "URL логотипа компании (PNG/SVG). Пустая строка если нет.",
+                    "default": "",
+                },
             },
         },
     },

@@ -4,6 +4,7 @@ Agent loop: единый Claude-разговор с tool_use.
 """
 from __future__ import annotations
 import os, io, json, logging
+from collections.abc import Awaitable, Callable
 import anthropic
 from pathlib import Path
 
@@ -60,7 +61,7 @@ typography:
   size_caption: 12
 
 logo:
-  url:          ""
+  url:          "{logo_url}"
   position:     "bottom-right"
   width_inches: 1.4
 
@@ -101,7 +102,8 @@ def build_initial_system_prompt() -> str:
 ## Инструкции
 - Определи для какой компании пользователь хочет презентацию.
 - Если компания есть в списке → вызови select_company(slug, theme_name).
-- Если компании нет → спроси о ней (название, цвета, стиль) и вызови register_company.
+- Если компании нет → спроси о ней (название, цвета, стиль, ссылку на логотип PNG/SVG) и вызови register_company.
+- Также предложи прислать брендбук/гайдлайны файлом — из него можно извлечь цвета, тон и описание.
 - Если у компании несколько тем, спроси какую предпочитает.
 - После выбора компании переходи к созданию презентации.
 
@@ -356,6 +358,7 @@ async def _handle_register_company(session: dict, inp: dict) -> dict:
         description=inp.get("description", ""),
         primary_color=inp["primary_color"],
         accent_color=inp["accent_color"],
+        logo_url=inp.get("logo_url", ""),
     )
     yaml_path.write_text(yaml_content, encoding="utf-8")
 
@@ -424,11 +427,14 @@ async def _handle_build_presentation(session: dict, inp: dict) -> dict:
         log.warning("Content QA issues (auto-fixed): %s", content_issues)
 
     # Build PPTX
+    status_cb = session.pop("_status_callback", None)
     path, meta = await _delivery.run(session)
     session["pptx_path"] = path
     session["pptx_meta"] = meta
 
     # Visual QA
+    if status_cb:
+        await status_cb("Проверяю качество...")
     qa_result = await _qa.start(session)
 
     # Format content QA summary if there were issues
@@ -485,6 +491,16 @@ _HANDLERS = {
 
 PAUSE_TOOLS = {"propose_slide_plan", "fill_slides", "edit_slides"}
 
+_TOOL_STATUS = {
+    "select_company": "Загружаю бренд...",
+    "register_company": "Регистрирую компанию...",
+    "save_research": "Сохраняю данные...",
+    "propose_slide_plan": "Готовлю план...",
+    "fill_slides": "Наполняю слайды...",
+    "edit_slides": "Обновляю слайды...",
+    "build_presentation": "Собираю презентацию...",
+}
+
 
 class AgentLoop:
 
@@ -494,6 +510,7 @@ class AgentLoop:
         user_text: str,
         file_bytes: bytes | None = None,
         file_name: str | None = None,
+        status_callback: Callable[[str], Awaitable[None]] | None = None,
     ) -> dict:
         # Build user content
         content = user_text or ""
@@ -504,7 +521,16 @@ class AgentLoop:
         session["messages"].append({"role": "user", "content": content})
         _trim_messages(session["messages"])
 
-        for _ in range(10):  # safety limit
+        async def _status(text: str):
+            if status_callback:
+                await status_callback(text)
+
+        for iteration in range(10):  # safety limit
+            if iteration == 0:
+                await _status("Думаю...")
+            else:
+                await _status(f"Думаю... (шаг {iteration + 1})")
+
             resp = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=5000,
@@ -549,6 +575,13 @@ class AgentLoop:
                         "is_error": True,
                     })
                     continue
+
+                tool_status = _TOOL_STATUS.get(block.name)
+                if tool_status:
+                    await _status(tool_status)
+
+                if block.name == "build_presentation" and status_callback:
+                    session["_status_callback"] = status_callback
 
                 try:
                     result = await handler(session, block.input)

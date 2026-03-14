@@ -84,14 +84,30 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         file_name = msg.document.file_name
 
     session = store.get_or_create(uid)
-    await ctx.bot.send_chat_action(msg.chat_id, "typing")
+    status_msg = await msg.reply_text("Думаю...")
+
+    async def update_status(text: str):
+        try:
+            await ctx.bot.send_chat_action(msg.chat_id, "typing")
+            await status_msg.edit_text(text)
+        except Exception:
+            pass
 
     try:
-        result = await pipeline.step(session, text, file_bytes, file_name)
+        result = await pipeline.step(session, text, file_bytes, file_name,
+                                     status_callback=update_status)
     except Exception as e:
         log.exception("Pipeline error")
-        await msg.reply_text(f"❌ Ошибка: {e}")
+        try:
+            await status_msg.edit_text(f"❌ Ошибка: {e}")
+        except Exception:
+            pass
         return
+
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
 
     if result["type"] == "message":
         body = result["text"]
