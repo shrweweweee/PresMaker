@@ -127,30 +127,33 @@ def _match_theme(text: str, candidates: list):
 
 
 def _theme_confirm_message(brand) -> dict:
-    text = (
-        f"\U0001f3a8 *Тема: {brand.theme_name}*\n"
-        f"Компания: *{brand.company_name}*\n"
-        f"_{brand.tagline}_\n\n"
-        f"Основной: `{brand.colors.primary_hex}`  Акцент: `{brand.colors.accent_hex}`\n"
-        f"Слайдов: {brand.slide_defaults.count}  Язык: {brand.language}  Тон: {brand.tone}\n\n"
-        "Использовать эту тему?\n"
+    lines = [
+        f"\U0001f3a8 *Тема: {brand.theme_name}*",
+        f"Компания: *{brand.company_name}*",
+    ]
+    if brand.tagline:
+        lines.append(f"_{brand.tagline}_")
+    lines.append(
+        f"\nОсновной: `{brand.colors.primary_hex}`  Акцент: `{brand.colors.accent_hex}`"
+    )
+    lines.append(
+        "\nИспользовать эту тему?\n"
         "\u2022 *да* \u2014 подтвердить\n"
         "\u2022 *нет* \u2014 вернуться к списку\n"
         "\u2022 *новая* \u2014 создать новую тему"
     )
-    return {"type": "message", "text": text}
+    return {"type": "message", "text": "\n".join(lines)}
 
 
 def _company_preview_message(brand) -> dict:
-    text = (
-        f"\u2705 Компания найдена: *{brand.company_name}*\n"
-        f"_{brand.tagline}_\n\n"
-        f"Основной: `{brand.colors.primary_hex}`  Акцент: `{brand.colors.accent_hex}`\n"
-        f"Слайдов: {brand.slide_defaults.count}  "
-        f"Язык: {brand.language}  Тон: {brand.tone}\n\n"
-        "Напишите тему презентации или прикрепите файл."
+    lines = [f"\u2705 Компания найдена: *{brand.company_name}*"]
+    if brand.tagline:
+        lines.append(f"_{brand.tagline}_")
+    lines.append(
+        f"\nОсновной: `{brand.colors.primary_hex}`  Акцент: `{brand.colors.accent_hex}`"
     )
-    return {"type": "message", "text": text}
+    lines.append("\nНапишите тему презентации или прикрепите файл.")
+    return {"type": "message", "text": "\n".join(lines)}
 
 
 def _theme_select_message(candidates: list) -> dict:
