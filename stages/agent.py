@@ -22,6 +22,7 @@ _qa = QAStage()
 _SLIDE_ICONS = {
     "title": "\U0001f3f7", "content": "\U0001f4c4", "chart": "\U0001f4ca",
     "two_column": "\U0001f4f0", "stats": "\U0001f4c8", "closing": "\U0001f3c1",
+    "section": "\U0001f4d1",
 }
 
 # ── YAML template (from onboarding.py) ──────────────────────────────────────
@@ -100,8 +101,10 @@ def build_system_prompt(brand: BrandConfig, onboarding: bool = False) -> str:
 - two_column: {{id, type, title, left: {{heading, items}}, right: {{heading, items}}}}
 - stats: {{id, type, title, stats: [{{label, value, trend}}]}}
 - closing: {{id, type, title, content: [{{type: bullet, text}}]}}
+- section: {{id, type, title, subtitle, section_number}}
 
 Обязательные типы: {always}. 4-6 буллетов на content-слайд.
+Используй section-слайды как разделители между крупными блоками презентации (section_number: "01", "02", ...).
 Включай data_for_charts когда есть цифры/динамика/сравнения. kind: bar|line|pie|doughnut.
 
 ## Правила
@@ -196,6 +199,13 @@ def _format_slides_preview(slides: list) -> str:
         elif t == "stats":
             for st in s.get("stats", [])[:3]:
                 lines.append(f"  {st.get('label','')}: {st.get('value','')} {st.get('trend','')}")
+        elif t == "section":
+            num = s.get("section_number", "")
+            sub = s.get("subtitle", "")
+            if num:
+                lines.append(f"  [{num}] {sub}" if sub else f"  [{num}]")
+            elif sub:
+                lines.append(f"  {sub}")
         lines.append("")
     lines.append("Всё верно? Напишите *создавай* или укажите правки (например: «слайд 3: добавь про безопасность»)")
     return "\n".join(lines)
@@ -346,21 +356,45 @@ async def _handle_edit_slides(session: dict, inp: dict) -> dict:
 
 
 async def _handle_build_presentation(session: dict, inp: dict) -> dict:
+    slides = session["filled_slides"]
+    charts = session["research_data"].get("data_for_charts", [])
+
+    # Content QA — pre-render validation (ClaWic rule 5)
+    from stages.qa import content_qa
+    from stages.layout_registry import truncate_content
+    content_issues = content_qa(slides, charts)
+
+    # Auto-fix: truncate overflowing content
+    if content_issues:
+        session["filled_slides"] = [truncate_content(s) for s in slides]
+        log.warning("Content QA issues (auto-fixed): %s", content_issues)
+
+    # Build PPTX
     path, meta = await _delivery.run(session)
     session["pptx_path"] = path
     session["pptx_meta"] = meta
 
+    # Visual QA
     qa_result = await _qa.start(session)
+
+    # Format content QA summary if there were issues
+    qa_note = ""
+    if content_issues:
+        qa_note = "Content QA (auto-fixed): " + "; ".join(content_issues)
+
     if qa_result.get("approved"):
         return {
-            "content": "Презентация собрана и прошла QA.",
+            "content": f"Презентация собрана и прошла QA. {qa_note}".strip(),
             "user_message": {"type": "file", **qa_result["file"]},
         }
 
     # QA found issues — report back to Claude
-    issues = qa_result.get("message", "")
+    visual_issues = qa_result.get("message", "")
     return {
-        "content": f"Презентация собрана, но QA нашла замечания:\n{issues}\n\nФайл всё равно отправлен пользователю.",
+        "content": (
+            f"Презентация собрана, но QA нашла замечания:\n{visual_issues}\n"
+            f"{qa_note}\n\nФайл всё равно отправлен пользователю."
+        ),
         "user_message": {"type": "file", **_qa_file_result(session)},
     }
 

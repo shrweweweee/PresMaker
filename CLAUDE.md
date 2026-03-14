@@ -49,9 +49,16 @@ The bot follows a linear 5-stage pipeline per user session:
 
 **`stages/preparation.py`** — Stage 2. Calls Claude to ask about audience/tone/slide count one question at a time, then produces a `slide_plan`. Waits for user confirmation ("да", "ок", etc.).
 
-**`stages/delivery.py`** — Stage 3. Calls Claude to fill slide content, then builds the PPTX via `python-pptx`. Supported slide types: `title`, `content`, `chart`, `two_column`, `stats`, `closing`. Charts rendered to PNG via matplotlib.
+**`stages/layout_registry.py`** — Layout inventory (ClaWic rules 2-3). Defines `LayoutSpec` dataclass and `LAYOUTS` dict for all 7 slide types (`title`, `content`, `chart`, `two_column`, `stats`, `closing`, `section`). Key functions:
+- `validate_slide(slide_data)` — checks required fields and item count limits
+- `match_layout(slide_data)` — infers slide type from data when type is missing/invalid
+- `truncate_content(slide_data)` — clips items to `max_items`, returns new dict
 
-**`stages/qa.py`** — Stage 4. Optionally renders slides to PNG via LibreOffice + pdftoppm, sends images to Claude Vision for inspection. Auto-passes if rendering tools unavailable.
+**`stages/delivery.py`** — Stage 3. Builds the PPTX via `python-pptx`. Supported slide types: `title`, `content`, `chart`, `two_column`, `stats`, `closing`, `section`. Charts rendered to PNG via matplotlib. Truncates slide content via `layout_registry.truncate_content` before rendering. Sets `core_properties.title`/`.subject` for portability.
+
+**`stages/qa.py`** — Stage 4. Two-phase QA:
+- `content_qa(slides, charts_data)` — pre-render validation: required fields, chart_ref bounds, item overflow, empty columns. Called from `agent.py` before PPTX build.
+- Visual QA — renders slides to PNG via LibreOffice + pdftoppm, sends to Claude Vision with categorized inspection (LAYOUT/CONTRAST/CONTENT/CONSISTENCY). Auto-passes if rendering tools unavailable.
 
 **`brand/loader.py`** — Core brand module. Key functions:
 - `load(path?)` — loads a YAML into a typed `BrandConfig`
@@ -69,6 +76,9 @@ The bot follows a linear 5-stage pipeline per user session:
 - **JSON extraction**: `research.py` and `preparation.py` each have a local `_extract_json()` that strips markdown fences and falls back to regex.
 - **PPTX dimensions**: All slides are 13.33×7.5 inches (widescreen 16:9), blank layout (index 6).
 - **Chart refs**: `slide_plan` entries of type `chart` reference `research_data["data_for_charts"]` by index via `chart_ref`.
+- **Layout registry**: `stages/layout_registry.py` is the single source of truth for slide type constraints (max items, required fields, body area). Both `delivery.py` and `qa.py` use it. When adding a new slide type, add an entry to `LAYOUTS` dict there.
+- **Content QA before render**: `agent.py` runs `content_qa()` before building the PPTX, auto-fixes overflow via `truncate_content()`, and logs warnings. Visual QA runs after.
+- **Portability**: PPTX uses rect overlay backgrounds (not `slide.background`), charts as PNG images, and sets `core_properties` metadata. No embedded fonts or complex effects.
 
 ## Environment Variables
 

@@ -144,10 +144,12 @@ TOOL_DEFINITIONS = [
                                 "enum": [
                                     "title", "content", "chart",
                                     "two_column", "stats", "closing",
+                                    "section",
                                 ],
                             },
                             "title": {"type": "string"},
                             "chart_ref": {"type": "integer"},
+                            "section_number": {"type": "string"},
                         },
                     },
                 },
@@ -176,10 +178,12 @@ TOOL_DEFINITIONS = [
                                 "enum": [
                                     "title", "content", "chart",
                                     "two_column", "stats", "closing",
+                                    "section",
                                 ],
                             },
                             "title": {"type": "string"},
                             "subtitle": {"type": "string"},
+                            "section_number": {"type": "string"},
                             "content": {
                                 "type": "array",
                                 "items": {
@@ -255,10 +259,12 @@ TOOL_DEFINITIONS = [
                                 "enum": [
                                     "title", "content", "chart",
                                     "two_column", "stats", "closing",
+                                    "section",
                                 ],
                             },
                             "title": {"type": "string"},
                             "subtitle": {"type": "string"},
+                            "section_number": {"type": "string"},
                             "content": {
                                 "type": "array",
                                 "items": {

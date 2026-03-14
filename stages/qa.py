@@ -2,16 +2,63 @@
 import os, subprocess, tempfile, glob, re, base64
 import anthropic
 
+from stages.layout_registry import LAYOUTS
+
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 _QA_SYSTEM = """
-Ты QA-инспектор презентаций. Проверяй строго.
-Найди реальные проблемы: обрезанный текст, перекрывающиеся элементы,
-низкий контраст, пустые блоки, отсутствующие графики.
+Ты QA-инспектор презентаций. Проверяй по категориям:
+
+LAYOUT: перекрывающиеся элементы, обрезанный текст, элементы за пределами слайда
+CONTRAST: текст сливается с фоном, нечитаемые подписи
+CONTENT: пустые блоки, placeholder-текст, отсутствующие графики
+CONSISTENCY: разный стиль заголовков между слайдами, прыгающие размеры
 
 Ответ: PASS — если всё хорошо.
-Иначе: ISSUES:\n- Слайд N: описание проблемы
+Иначе: ISSUES:
+- Слайд N [КАТЕГОРИЯ]: описание проблемы
 """
+
+
+def content_qa(slides: list[dict], charts_data: list[dict]) -> list[str]:
+    """Pre-render QA: validate slide data without generating PPTX."""
+    issues = []
+    for i, s in enumerate(slides):
+        slide_num = i + 1
+        slide_type = s.get("type", "content")
+        spec = LAYOUTS.get(slide_type, LAYOUTS["content"])
+
+        # Required fields
+        for field in spec.required_fields:
+            val = s.get(field)
+            if val is None or (isinstance(val, str) and not val.strip()):
+                issues.append(f"Слайд {slide_num}: пустое обязательное поле '{field}'")
+
+        # chart_ref validity
+        if slide_type == "chart":
+            ref = s.get("chart_ref", 0)
+            if ref >= len(charts_data):
+                issues.append(
+                    f"Слайд {slide_num}: chart_ref={ref} вне диапазона "
+                    f"(есть {len(charts_data)} графиков)"
+                )
+
+        # Content overflow warning
+        items = s.get("content") or s.get("stats") or []
+        if isinstance(items, list) and spec.max_items > 0 and len(items) > spec.max_items:
+            issues.append(
+                f"Слайд {slide_num}: {len(items)} элементов "
+                f"(макс {spec.max_items}), лишние обрежутся"
+            )
+
+        # Empty columns in two_column
+        if slide_type == "two_column":
+            for col in ("left", "right"):
+                col_data = s.get(col, {})
+                if not col_data or not col_data.get("items"):
+                    issues.append(f"Слайд {slide_num}: пустая колонка '{col}'")
+
+    return issues
 
 
 class QAStage:
