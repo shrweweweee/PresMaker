@@ -3,7 +3,7 @@
 Поддерживает несколько компаний — каждый YAML в brand/ = отдельный бренд.
 """
 from __future__ import annotations
-import os
+import os, json
 from pathlib import Path
 from dataclasses import dataclass
 import yaml
@@ -11,6 +11,7 @@ from pptx.dml.color import RGBColor
 
 _BRAND_DIR = Path(__file__).parent
 _CONFIG_PATH = Path(os.environ.get("BRAND_CONFIG", _BRAND_DIR / "config.yaml"))
+_COMPANIES_JSON = _BRAND_DIR / "companies.json"
 
 
 @dataclass
@@ -186,6 +187,53 @@ def find_brand(query: str) -> list[BrandConfig]:
         if q in name.lower() or name.lower() in q:
             results.append(load(path))
     return results
+
+
+def load_companies_json() -> dict:
+    """Читает brand/companies.json — AI-facing память о компаниях."""
+    if _COMPANIES_JSON.exists():
+        with open(_COMPANIES_JSON, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_company_to_json(
+    slug: str,
+    name: str,
+    tagline: str = "",
+    description: str = "",
+    context: str = "",
+    audiences: list[str] | None = None,
+    theme_name: str = "default",
+    brand_file: str = "",
+) -> None:
+    """Добавляет/обновляет запись о компании в companies.json."""
+    data = load_companies_json()
+    entry = data.get(slug, {
+        "name": name,
+        "tagline": tagline,
+        "description": description,
+        "context": context,
+        "audiences": audiences or [],
+        "themes": [],
+        "brand_files": [],
+    })
+    entry["name"] = name
+    if tagline:
+        entry["tagline"] = tagline
+    if description:
+        entry["description"] = description
+    if context:
+        entry["context"] = context
+    if audiences:
+        entry["audiences"] = audiences
+    if theme_name not in entry.get("themes", []):
+        entry.setdefault("themes", []).append(theme_name)
+    if brand_file and brand_file not in entry.get("brand_files", []):
+        entry.setdefault("brand_files", []).append(brand_file)
+    data[slug] = entry
+    with open(_COMPANIES_JSON, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 # Синглтон — дефолтный бренд (используется как fallback)

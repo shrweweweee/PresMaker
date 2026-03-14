@@ -7,7 +7,10 @@ import os, io, json, logging
 import anthropic
 from pathlib import Path
 
-from brand.loader import load as load_brand, BrandConfig, _BRAND_DIR
+from brand.loader import (
+    load as load_brand, BrandConfig, _BRAND_DIR,
+    list_brands_grouped, load_companies_json, save_company_to_json,
+)
 from stages.tools import TOOL_DEFINITIONS
 from stages.delivery import DeliveryBuildStage
 from stages.qa import QAStage
@@ -76,12 +79,45 @@ agent:
 
 # ── System prompt builder ───────────────────────────────────────────────────
 
-def build_system_prompt(brand: BrandConfig, onboarding: bool = False) -> str:
-    """Build system prompt for the agent loop."""
+def build_initial_system_prompt() -> str:
+    """System prompt до выбора компании. Содержит список компаний из companies.json."""
+    companies = load_companies_json()
+    company_lines = []
+    for slug, info in companies.items():
+        themes = ", ".join(info.get("themes", ["default"]))
+        company_lines.append(
+            f"- **{info['name']}** (slug: `{slug}`, темы: {themes})\n"
+            f"  {info.get('description', '')}\n"
+            f"  {info.get('context', '')}"
+        )
+    companies_block = "\n".join(company_lines) if company_lines else "_нет зарегистрированных компаний_"
+
+    return f"""\
+Ты — ассистент по созданию презентаций.
+
+## Известные компании
+{companies_block}
+
+## Инструкции
+- Определи для какой компании пользователь хочет презентацию.
+- Если компания есть в списке → вызови select_company(slug, theme_name).
+- Если компании нет → спроси о ней (название, цвета, стиль) и вызови register_company.
+- Если у компании несколько тем, спроси какую предпочитает.
+- После выбора компании переходи к созданию презентации.
+
+## Правила
+- Задавай по ОДНОМУ вопросу за раз.
+- Всегда используй tools для сохранения данных.
+- Если пользователь прикрепил файл — используй его содержимое.
+"""
+
+
+def build_system_prompt(brand: BrandConfig) -> str:
+    """Build system prompt for the agent loop (after company is selected)."""
     defaults = brand.slide_defaults
     always = ", ".join(defaults.always_include) if defaults.always_include else "title, closing"
 
-    prompt = f"""\
+    return f"""\
 Ты — ассистент по созданию презентаций для {brand.company_name}.
 {brand.agent.company_context}
 Язык: {brand.language}. Тон: {brand.tone}.
@@ -112,13 +148,6 @@ def build_system_prompt(brand: BrandConfig, onboarding: bool = False) -> str:
 - Всегда используй tools для сохранения данных.
 - Если пользователь прикрепил файл — используй его содержимое.
 """
-    if onboarding:
-        prompt = (
-            "Пользователь хочет создать презентацию для неизвестной компании.\n"
-            "Спроси о компании и стиле, затем вызови register_company.\n"
-            "После регистрации продолжай обычный процесс.\n\n"
-        ) + prompt
-    return prompt
 
 
 # ── File parser (consolidated from onboarding.py) ──────────────────────────
@@ -293,6 +322,20 @@ def _extract_text(resp) -> str:
 
 # ── Tool handlers ───────────────────────────────────────────────────────────
 
+async def _handle_select_company(session: dict, inp: dict) -> dict:
+    slug = inp["slug"]
+    theme_name = inp.get("theme_name", "default")
+    grouped = list_brands_grouped()
+    candidates = grouped.get(slug, [])
+    match = next((c for c in candidates if c["theme"] == theme_name), None)
+    if not match:
+        return {"content": f"Бренд {slug}/{theme_name} не найден. Проверь slug или предложи register_company."}
+    brand = load_brand(match["path"])
+    session["brand"] = brand
+    session["system_prompt"] = build_system_prompt(brand)
+    return {"content": f"Компания «{brand.company_name}» загружена (тема: {theme_name}). Продолжай процесс создания презентации."}
+
+
 async def _handle_register_company(session: dict, inp: dict) -> dict:
     slug = inp["slug"]
     theme_name = inp.get("theme_name", "default")
@@ -315,10 +358,21 @@ async def _handle_register_company(session: dict, inp: dict) -> dict:
         accent_color=inp["accent_color"],
     )
     yaml_path.write_text(yaml_content, encoding="utf-8")
+
+    # Update companies.json
+    save_company_to_json(
+        slug=slug,
+        name=inp["company_name"],
+        tagline=inp.get("tagline", ""),
+        description=inp.get("description", ""),
+        theme_name=theme_name,
+        brand_file=f"brand/{file_slug}.yaml",
+    )
+
     brand = load_brand(yaml_path)
     session["brand"] = brand
     session["system_prompt"] = build_system_prompt(brand)
-    return {"content": f"Компания «{brand.company_name}» зарегистрирована. Бренд загружен. Продолжай обычный процесс."}
+    return {"content": f"Компания «{brand.company_name}» зарегистрирована. Бренд загружен. Продолжай процесс создания презентации."}
 
 
 async def _handle_save_research(session: dict, inp: dict) -> dict:
@@ -417,6 +471,7 @@ def _qa_file_result(session: dict) -> dict:
 # ── Tool dispatch ───────────────────────────────────────────────────────────
 
 _HANDLERS = {
+    "select_company": _handle_select_company,
     "register_company": _handle_register_company,
     "save_research": _handle_save_research,
     "propose_slide_plan": _handle_propose_slide_plan,

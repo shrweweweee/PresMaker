@@ -1,0 +1,20 @@
+{
+  "castos": {
+    "name": "Кастос",
+    "tagline": "Инновации для бизнеса",
+    "description": "Кастос Кастоди — российская компания, платформа корпоративного кастоди для институционального хранения цифровых активов.",
+    "context": "Основана в 2025 году специалистами из МФТИ, Accenture, P2P.org. Ключевые возможности: MPC Threshold Signing, политики согласования, KYT Gate. Поддерживаемые активы: Bitcoin, Ethereum, Solana, USDC, Avalanche. Целевые клиенты: обменники, майнеры, банки, фонды.",
+    "audiences": ["совет директоров", "инвесторы", "партнёры", "банки", "регуляторы"],
+    "themes": ["default"],
+    "brand_files": ["brand/config.yaml"]
+  },
+  "techstartup": {
+    "name": "TechStartup Inc",
+    "tagline": "Move fast, build smart",
+    "description": "Продуктовая IT-компания, B2C мобильные приложения.",
+    "context": "Ключевые метрики: DAU, Retention D7/D30, LTV, Conversion Rate.",
+    "audiences": ["инвесторы", "команда разработки", "пользователи"],
+    "themes": ["default"],
+    "brand_files": ["brand/techstartup.yaml"]
+  }
+}

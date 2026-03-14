@@ -6,6 +6,25 @@
 TOOL_DEFINITIONS = [
     # ── Skill: Profile ──────────────────────────────────────────────────────
     {
+        "name": "select_company",
+        "description": (
+            "Выбирает компанию для презентации. "
+            "Вызывай когда определил какую компанию хочет пользователь."
+        ),
+        "input_schema": {
+            "type": "object",
+            "required": ["slug"],
+            "properties": {
+                "slug": {"type": "string", "description": "Slug компании из списка"},
+                "theme_name": {
+                    "type": "string",
+                    "description": "Название темы (default если одна)",
+                    "default": "default",
+                },
+            },
+        },
+    },
+    {
         "name": "register_company",
         "description": (
             "Регистрирует новую компанию: создаёт YAML-файл бренда и загружает его. "
